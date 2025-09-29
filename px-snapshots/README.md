@@ -96,28 +96,13 @@ Wait for the app Pod to be Running and writing data to the PVC.
          storage: 2Gi
    EOF
    ```
-5. Mount restored PVC in a test Pod and validate data:
+5. Restore using the MySQL restore deployment and validate data:
    ```bash
-   kubectl -n px-snapshots apply -f - <<EOF
-   apiVersion: v1
-   kind: Pod
-   metadata:
-     name: restore-check-local
-     namespace: px-snapshots
-   spec:
-     containers:
-     - name: busybox
-       image: busybox:1.36
-       command: ["sh","-c","ls -l /data && cat /data/testfile.txt || true && sleep 3600"]
-       volumeMounts:
-       - name: data
-         mountPath: /data
-     volumes:
-     - name: data
-       persistentVolumeClaim:
-         claimName: pvc-from-local-snap
-   EOF
-   kubectl -n px-snapshots exec -it restore-check-local -- cat /data/testfile.txt || true
+   # Restore from mysql-snap-local and start verifier
+   kubectl apply -f manifests/mysql/restore.yaml
+   kubectl -n px-snapshots rollout status deploy/mysql-restore
+   # Check recent rows and table health from the verifier container
+   kubectl -n px-snapshots logs deploy/mysql-restore -c verifier --tail=50
    ```
 
 #### 2) Cloud CSI Snapshot (MySQL)
