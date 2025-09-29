@@ -1,0 +1,24 @@
+apiVersion: stork.libopenstorage.org/v1alpha1
+kind: VolumeSnapshotSchedule
+metadata:
+  name: mysql-snap-schedule
+  namespace: px-snapshots
+spec:
+  schedulePolicyName: mysql-interval-10m
+  template:
+    spec:
+      pvcName: mysql-px
+      snapClassName: px-mysql-snapclass-local
+      preExecRule: mysql-freeze
+      postExecRule: mysql-thaw
+  suspend: false
+---
+apiVersion: stork.libopenstorage.org/v1alpha1
+kind: SchedulePolicy
+metadata:
+  name: mysql-interval-10m
+policy:
+  interval:
+    intervalMinutes: 10
+    retain: 2
+

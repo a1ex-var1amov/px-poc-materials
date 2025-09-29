@@ -1,0 +1,24 @@
+apiVersion: stork.libopenstorage.org/v1alpha1
+kind: Rule
+metadata:
+  name: mysql-freeze
+  namespace: px-snapshots
+rules:
+- podSelector:
+    app: mysql
+  actions:
+  - type: command
+    value: ["sh", "-c", "mysql -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD -e 'FLUSH TABLES WITH READ LOCK; DO SLEEP(3);' || true"]
+---
+apiVersion: stork.libopenstorage.org/v1alpha1
+kind: Rule
+metadata:
+  name: mysql-thaw
+  namespace: px-snapshots
+rules:
+- podSelector:
+    app: mysql
+  actions:
+  - type: command
+    value: ["sh", "-c", "mysql -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD -e 'UNLOCK TABLES;' || true"]
+

@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-from-snap
+  namespace: px-snapshots
+spec:
+  storageClassName: px-sc
+  dataSource:
+    name: mysql-snap-local
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-restore
+  namespace: px-snapshots
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql-restore
+  template:
+    metadata:
+      labels:
+        app: mysql-restore
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.3
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_ROOT_PASSWORD
+        ports:
+        - containerPort: 3306
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+      - name: verifier
+        image: mysql:8.3
+        command: ["sh","-c"]
+        args:
+          - |
+            sleep 20; 
+            echo "Verifying snapshot consistency..."; 
+            while true; do 
+              mysql -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD -e "USE pxdb; SELECT COUNT(*) as rows_count FROM t; SELECT * FROM t ORDER BY id DESC LIMIT 5;"; 
+              sleep 10; 
+            done
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_ROOT_PASSWORD
+      volumes:
+      - name: mysql-data
+        persistentVolumeClaim:
+          claimName: mysql-from-snap
+

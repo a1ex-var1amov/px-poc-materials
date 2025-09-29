@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: px-snapshots
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.3
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_ROOT_PASSWORD
+        ports:
+        - containerPort: 3306
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+      - name: writer
+        image: mysql:8.3
+        command: ["sh","-c"]
+        args:
+          - |
+            sleep 15;
+            echo "Creating db and table, then writing rows...";
+            while true; do 
+              mysql -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD -e "CREATE DATABASE IF NOT EXISTS pxdb; USE pxdb; CREATE TABLE IF NOT EXISTS t (id INT AUTO_INCREMENT PRIMARY KEY, ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP, note VARCHAR(128)); INSERT INTO t(note) VALUES (CONCAT('row-', UNIX_TIMESTAMP()));" && sleep 2; 
+            done
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_ROOT_PASSWORD
+        # No volume mount needed; client container
+      volumes:
+      - name: mysql-data
+        persistentVolumeClaim:
+          claimName: mysql-px
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: px-snapshots
+spec:
+  selector:
+    app: mysql
+  ports:
+  - name: mysql
+    port: 3306
+    targetPort: 3306
+
