@@ -1,0 +1,9 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: px-snapclass-local
+driver: pxd.portworx.com
+deletionPolicy: Delete
+parameters:
+  portworx/snapshot-type: local
+

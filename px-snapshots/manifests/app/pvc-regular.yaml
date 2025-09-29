@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: px-data
+  namespace: px-snapshots
+  labels:
+    app: px-writer
+spec:
+  storageClassName: px-sc
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+

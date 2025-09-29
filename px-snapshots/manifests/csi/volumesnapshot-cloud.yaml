@@ -1,0 +1,10 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: data-snap-cloud
+  namespace: px-snapshots
+spec:
+  volumeSnapshotClassName: px-snapclass-cloud
+  source:
+    persistentVolumeClaimName: px-data
+

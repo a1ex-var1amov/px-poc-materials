@@ -1,0 +1,13 @@
+apiVersion: stork.libopenstorage.org/v1alpha1
+kind: GroupVolumeSnapshot
+metadata:
+  name: stork-group-snap
+  namespace: px-snapshots
+spec:
+  preExecRule: app-freeze
+  postExecRule: app-thaw
+  snapClassName: px-snapclass-local
+  pvcSelector:
+    matchLabels:
+      app: px-writer
+

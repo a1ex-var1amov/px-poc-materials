@@ -1,0 +1,22 @@
+apiVersion: stork.libopenstorage.org/v1alpha1
+kind: VolumeSnapshotSchedule
+metadata:
+  name: stork-snap-schedule
+  namespace: px-snapshots
+spec:
+  schedulePolicyName: interval-5m
+  template:
+    spec:
+      pvcName: px-data
+      snapClassName: px-snapclass-local
+  suspend: false
+---
+apiVersion: stork.libopenstorage.org/v1alpha1
+kind: SchedulePolicy
+metadata:
+  name: interval-5m
+policy:
+  interval:
+    intervalMinutes: 5
+    retain: 3
+

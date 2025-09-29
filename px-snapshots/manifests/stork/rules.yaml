@@ -1,0 +1,24 @@
+apiVersion: stork.libopenstorage.org/v1alpha1
+kind: Rule
+metadata:
+  name: app-freeze
+  namespace: px-snapshots
+rules:
+- podSelector:
+    app: px-writer
+  actions:
+  - type: command
+    value: ["sh", "-c", "sync"]
+---
+apiVersion: stork.libopenstorage.org/v1alpha1
+kind: Rule
+metadata:
+  name: app-thaw
+  namespace: px-snapshots
+rules:
+- podSelector:
+    app: px-writer
+  actions:
+  - type: command
+    value: ["sh", "-c", "echo thaw"]
+

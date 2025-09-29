@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: px-writer
+  namespace: px-snapshots
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: px-writer
+  template:
+    metadata:
+      labels:
+        app: px-writer
+    spec:
+      containers:
+      - name: writer
+        image: busybox:1.36
+        command: ["sh","-c"]
+        args:
+          - |
+            i=0; 
+            while true; do 
+              echo "$(date -Is) line $i" >> /data/testfile.txt; 
+              sync; 
+              i=$((i+1)); 
+              sleep 2; 
+            done
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: px-data
+
