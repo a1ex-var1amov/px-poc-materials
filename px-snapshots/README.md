@@ -170,6 +170,12 @@ kubectl -n px-snapshots rollout status deploy/mysql
 
 The sidecar writer continuously inserts rows into `pxdb.t`.
 
+Before taking a snapshot, verify the database exists and has rows:
+```bash
+kubectl -n px-snapshots exec deploy/mysql -c writer -- \
+  sh -c "mysql -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD -e 'SHOW DATABASES; USE pxdb; SELECT COUNT(*) FROM t;'"
+```
+
 #### Create a CSI local snapshot (crash-consistent)
 ```bash
 kubectl apply -f manifests/mysql/csi-snapclass.yaml

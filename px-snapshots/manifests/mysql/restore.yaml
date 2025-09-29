@@ -52,7 +52,13 @@ spec:
             sleep 20; 
             echo "Verifying snapshot consistency..."; 
             while true; do 
-              mysql -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD -e "USE pxdb; SELECT COUNT(*) as rows_count FROM t; SELECT * FROM t ORDER BY id DESC LIMIT 5;"; 
+              if mysql -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD -e "USE pxdb; SELECT 1;" >/dev/null 2>&1; then 
+                echo "pxdb present; showing recent rows:"; 
+                mysql -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD -e "USE pxdb; SELECT COUNT(*) as rows_count FROM t; SELECT * FROM t ORDER BY id DESC LIMIT 5;"; 
+              else 
+                echo "pxdb not found in restored data yet; listing databases..."; 
+                mysql -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD -e "SHOW DATABASES;" || true; 
+              fi; 
               sleep 10; 
             done
         env:
