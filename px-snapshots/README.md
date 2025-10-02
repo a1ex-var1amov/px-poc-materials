@@ -60,7 +60,32 @@ kubectl apply -f manifests/mysql/deploy.yaml
 
 Wait for the app Pod to be Running and writing data to the PVC.
 
+### Snapshot types matrix
+
+| Snapshot type | Scope | Storage location | Orchestration | K8s objects | Key params/notes |
+|---|---|---|---|---|---|
+| Local snapshot | Single PVC | In-cluster (PX pools) | CSI | `VolumeSnapshotClass`, `VolumeSnapshot` | `driver: pxd.portworx.com`, `parameters: portworx/snapshot-type: local` |
+| CloudSnap | Single PVC | Object store | CSI | `VolumeSnapshotClass`, `VolumeSnapshot` | `parameters: portworx/snapshot-type: cloud`, optional `portworx/cloudsnap: "true"` |
+| Group snapshot (local/cloud) | Multiple PVCs | In-cluster or object store | STORK | `GroupVolumeSnapshot` | Uses `snapClassName` pointing to CSI class; supports pre/post rules |
+| App-consistent snapshot (3DSnap) | Single or multiple PVCs | Local or cloud | STORK | `VolumeSnapshot` or `GroupVolumeSnapshot` + `Rule` | Uses `preExecRule`/`postExecRule` for quiesce/thaw |
+| Scheduled snapshots | Single or multiple PVCs | Local or cloud | STORK | `VolumeSnapshotSchedule` (+ `SchedulePolicy`) | Produces CSI `VolumeSnapshot` objects per schedule |
+| SkinnySnaps | Optimization for snapshots | Local/cloud | Portworx feature | n/a | Tunable snapshot replica factor; validate via perf/usage not objects |
+
+Doc links: Snapshots overview, CSI, CloudSnap methods, SkinnySnaps
+- Snapshots overview: https://docs.portworx.com/portworx-enterprise/concepts/kubernetes-storage-101/snapshots
+- Create snapshots (on-demand): https://docs.portworx.com/portworx-enterprise/operations/operate-kubernetes/storage-operations/create-snapshots/on-demand
+- Cloud snapshots: https://docs.portworx.com/portworx-enterprise/operations/operate-kubernetes/storage-operations/create-snapshots/on-demand/snaps-cloud
+- CloudSnap methods: https://docs.portworx.com/portworx-enterprise/operations/operate-kubernetes/storage-operations/create-snapshots/snapshot-methods
+- SkinnySnaps: https://docs.portworx.com/portworx-enterprise/3.3/operations/create-snapshots/skinnysnaps
+
 ### Test Plan
+
+Coverage mapping (manifests → type)
+- CSI Local single-PVC: `manifests/mysql/csi-snapclass.yaml`, `manifests/mysql/csi-snapshot.yaml`, also examples in `manifests/csi/volumesnapshot-local.yaml`
+- CSI Cloud single-PVC: `manifests/mysql/csi-snapclass-cloud.yaml`, `manifests/mysql/csi-snapshot-cloud.yaml`, also examples in `manifests/csi/volumesnapshot-cloud.yaml`
+- STORK app-consistent single-PVC: `manifests/mysql/stork-rules.yaml`, `manifests/mysql/stork-volumesnapshot.yaml`
+- STORK schedule: `manifests/stork/volumesnapshotschedule.yaml`
+- STORK group snapshot: `manifests/stork/groupvolumesnapshot.yaml`
 
 #### 1) Local CSI Snapshot (MySQL)
 1. Create a `VolumeSnapshotClass` for local snapshots:
