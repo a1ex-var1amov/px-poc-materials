@@ -5,5 +5,5 @@ metadata:
 driver: pxd.portworx.com
 deletionPolicy: Delete
 parameters:
-  portworx/snapshot-type: local
+  csi.openstorage.org/snapshot-type: local
 

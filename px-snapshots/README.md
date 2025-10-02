@@ -13,6 +13,8 @@ References: [Create Snapshots in Portworx](https://docs.portworx.com/portworx-en
 - For Cloud Snapshots:
   - CloudSnap configured: Portworx cloud credentials/secrets and backup location set up
   - Sufficient bandwidth and object storage bucket
+  - STORK installed and app scheduled with `stork` if you plan in-place restore
+  - Cloud-capable VolumeSnapshotClass applied (see `manifests/csi/volumesnapshotclass-cloud.yaml`)
 - For 3D Snapshots:
   - Application uses a `Deployment`/`StatefulSet` and PVCs provisioned by Portworx
   - STORK Rules for pre/post hooks (optional but recommended)
@@ -32,7 +34,6 @@ manifests/
     volumesnapshotclass-local.yaml
     volumesnapshotclass-cloud.yaml
     volumesnapshot-local.yaml
-    volumesnapshot-cloud.yaml
   stork/
     rules.yaml
     volumesnapshot.yaml
@@ -64,25 +65,24 @@ Wait for the app Pod to be Running and writing data to the PVC.
 
 | Snapshot type | Scope | Storage location | Orchestration | K8s objects | Key params/notes |
 |---|---|---|---|---|---|
-| Local snapshot | Single PVC | In-cluster (PX pools) | CSI | `VolumeSnapshotClass`, `VolumeSnapshot` | `driver: pxd.portworx.com`, `parameters: portworx/snapshot-type: local` |
-| CloudSnap | Single PVC | Object store | CSI | `VolumeSnapshotClass`, `VolumeSnapshot` | `parameters: portworx/snapshot-type: cloud`, optional `portworx/cloudsnap: "true"` |
+| Local snapshot | Single PVC | In-cluster (PX pools) | CSI | `VolumeSnapshotClass`, `VolumeSnapshot` | `driver: pxd.portworx.com`, `parameters: csi.openstorage.org/snapshot-type: local` |
+| CloudSnap | Single PVC | Object store | STORK | `VolumeSnapshot` (stork), `VolumeSnapshotClass` | Use STORK with cloud-capable class; STORK handles create/restore; in-place restore requires `stork` scheduler |
 | Group snapshot (local/cloud) | Multiple PVCs | In-cluster or object store | STORK | `GroupVolumeSnapshot` | Uses `snapClassName` pointing to CSI class; supports pre/post rules |
 | App-consistent snapshot (3DSnap) | Single or multiple PVCs | Local or cloud | STORK | `VolumeSnapshot` or `GroupVolumeSnapshot` + `Rule` | Uses `preExecRule`/`postExecRule` for quiesce/thaw |
 | Scheduled snapshots | Single or multiple PVCs | Local or cloud | STORK | `VolumeSnapshotSchedule` (+ `SchedulePolicy`) | Produces CSI `VolumeSnapshot` objects per schedule |
 | SkinnySnaps | Optimization for snapshots | Local/cloud | Portworx feature | n/a | Tunable snapshot replica factor; validate via perf/usage not objects |
 
-Doc links: Snapshots overview, CSI, CloudSnap methods, SkinnySnaps
-- Snapshots overview: https://docs.portworx.com/portworx-enterprise/concepts/kubernetes-storage-101/snapshots
-- Create snapshots (on-demand): https://docs.portworx.com/portworx-enterprise/operations/operate-kubernetes/storage-operations/create-snapshots/on-demand
-- Cloud snapshots: https://docs.portworx.com/portworx-enterprise/operations/operate-kubernetes/storage-operations/create-snapshots/on-demand/snaps-cloud
-- CloudSnap methods: https://docs.portworx.com/portworx-enterprise/operations/operate-kubernetes/storage-operations/create-snapshots/snapshot-methods
-- SkinnySnaps: https://docs.portworx.com/portworx-enterprise/3.3/operations/create-snapshots/skinnysnaps
+Doc links: Snapshots overview, Cloud Snapshots, methods, SkinnySnaps
+- Snapshots overview: https://docs.portworx.com/portworx-enterprise/operations/create-snapshots
+- Cloud Snapshots: https://docs.portworx.com/portworx-enterprise/operations/create-snapshots/cloud-snapshots
+- Snapshot methods: https://docs.portworx.com/portworx-enterprise/operations/create-snapshots/snapshot-methods
+- SkinnySnaps: https://docs.portworx.com/portworx-enterprise/operations/create-snapshots/skinnysnaps
 
 ### Test Plan
 
 Coverage mapping (manifests → type)
 - CSI Local single-PVC: `manifests/mysql/csi-snapclass.yaml`, `manifests/mysql/csi-snapshot.yaml`, also examples in `manifests/csi/volumesnapshot-local.yaml`
-- CSI Cloud single-PVC: `manifests/mysql/csi-snapclass-cloud.yaml`, `manifests/mysql/csi-snapshot-cloud.yaml`, also examples in `manifests/csi/volumesnapshot-cloud.yaml`
+- STORK Cloud single-PVC: `manifests/mysql/stork-volumesnapshot.yaml` (use cloud-capable snapclass), or examples in `manifests/csi/volumesnapshotclass-cloud.yaml` referenced by STORK objects
 - STORK app-consistent single-PVC: `manifests/mysql/stork-rules.yaml`, `manifests/mysql/stork-volumesnapshot.yaml`
 - STORK schedule: `manifests/stork/volumesnapshotschedule.yaml`
 - STORK group snapshot: `manifests/stork/groupvolumesnapshot.yaml`
@@ -130,18 +130,26 @@ Coverage mapping (manifests → type)
    kubectl -n px-snapshots logs deploy/mysql-restore -c verifier --tail=50
    ```
 
-#### 2) Cloud CSI Snapshot (MySQL)
-Precondition: Portworx CloudSnap configured.
-1. Apply Cloud `VolumeSnapshotClass`:
+#### 2) Cloud Snapshot via STORK (MySQL)
+Precondition: Portworx CloudSnap configured and credentials present; STORK installed.
+1. Apply a cloud-capable `VolumeSnapshotClass` (CSI GA):
    ```bash
-   kubectl apply -f manifests/mysql/csi-snapclass-cloud.yaml
+   kubectl apply -f manifests/csi/volumesnapshotclass-cloud.yaml
    ```
-2. Create Cloud `VolumeSnapshot`:
+2. Create a STORK `VolumeSnapshot` referencing the PVC and the cloud class:
    ```bash
-   kubectl apply -f manifests/mysql/csi-snapshot-cloud.yaml
+   kubectl apply -f manifests/mysql/stork-volumesnapshot.yaml
+   kubectl -n px-snapshots get volumesnapshot -w
    ```
-3. Verify completion and optional off-cluster presence per Portworx monitoring/pxctl.
-4. Restore from cloud snapshot similar to Local by creating a PVC from snapshot, then mount in a Pod to verify contents.
+3. Verify completion and CloudSnap presence:
+   ```bash
+   kubectl -n px-snapshots get volumesnapshot mysql-stork-snap -o jsonpath='{.status.readyToUse}{"\n"}'
+   # Optional: verify at Portworx layer
+   pxctl cloudsnap list
+   ```
+4. Restore using STORK or create a PVC from the produced `VolumeSnapshot`:
+   - For CSI restore to a new PVC, follow the PVC-from-snapshot example above but substitute `mysql-stork-snap`.
+   - For in-place restore, schedule your workload with `stork` and use STORK restore workflows.
 
 #### 3) 3D Snapshot with STORK (MySQL)
 STORK can orchestrate application-consistent snapshots across multiple PVCs.

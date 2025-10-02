@@ -7,5 +7,5 @@ spec:
   pvcName: mysql-px
   preExecRule: mysql-freeze
   postExecRule: mysql-thaw
-  snapClassName: px-mysql-snapclass-local
+  snapClassName: px-mysql-snapclass-cloud
 

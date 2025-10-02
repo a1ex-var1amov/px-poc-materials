@@ -6,8 +6,8 @@ metadata:
 spec:
   preExecRule: app-freeze
   postExecRule: app-thaw
-  snapClassName: px-snapclass-local
+  snapClassName: px-mysql-snapclass-cloud
   pvcSelector:
     matchLabels:
-      app: px-writer
+      app: mysql
 

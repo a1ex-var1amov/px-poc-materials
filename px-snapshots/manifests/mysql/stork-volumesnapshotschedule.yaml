@@ -8,7 +8,7 @@ spec:
   template:
     spec:
       pvcName: mysql-px
-      snapClassName: px-mysql-snapclass-local
+      snapClassName: px-mysql-snapclass-cloud
       preExecRule: mysql-freeze
       postExecRule: mysql-thaw
   suspend: false
