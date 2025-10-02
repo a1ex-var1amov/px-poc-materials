@@ -151,6 +151,8 @@ Precondition: Portworx CloudSnap configured and credentials present; STORK insta
    - For CSI restore to a new PVC, follow the PVC-from-snapshot example above but substitute `mysql-stork-snap`.
    - For in-place restore, schedule your workload with `stork` and use STORK restore workflows.
 
+See also: `manual-cloud-snap/` for a minimal, manual CloudSnap walkthrough using CSI GA objects.
+
 #### 3) 3D Snapshot with STORK (MySQL)
 STORK can orchestrate application-consistent snapshots across multiple PVCs.
 1. Apply optional pre/post exec `Rule`s:
@@ -173,7 +175,36 @@ STORK can orchestrate application-consistent snapshots across multiple PVCs.
    ```
 5. Restore as with CSI: create PVCs from the produced `VolumeSnapshot`s.
 
-#### 4) SkinnySnaps and RelaxedReclaim
+#### 4) Group Cloud Snapshot (Cassandra, multi-PVC)
+This scenario deploys Cassandra with two PVCs per pod (`data`, `commitlog`) and takes a cloud group snapshot using STORK.
+1. Deploy Cassandra (headless Service + StatefulSet):
+   ```bash
+   kubectl apply -f manifests/cassandra/deploy.yaml
+   kubectl -n px-snapshots rollout status sts/cassandra
+   ```
+2. Apply Cassandra pre/post exec rules:
+   ```bash
+   kubectl apply -f manifests/stork/rules.yaml
+   ```
+3. Ensure a cloud-capable `VolumeSnapshotClass` exists:
+   ```bash
+   kubectl apply -f manifests/csi/volumesnapshotclass-cloud.yaml
+   ```
+4. Trigger a GroupVolumeSnapshot for all PVCs labeled `app=cassandra`:
+   ```bash
+   kubectl apply -f manifests/stork/groupvolumesnapshot-cassandra.yaml
+   kubectl -n px-snapshots get volumesnapshot -w
+   ```
+   - STORK will create individual CSI `VolumeSnapshot`s for each matching PVC with `snapClassName: px-mysql-snapclass-cloud`.
+5. Verify CloudSnap presence:
+   ```bash
+   pxctl cloudsnap list
+   ```
+6. Restore path:
+   - Create new PVCs from produced `VolumeSnapshot`s (one per PVC).
+   - Or use STORK workflows for app-level restore if needed.
+
+#### 5) SkinnySnaps and RelaxedReclaim
 - SkinnySnaps: Portworx optimization to reduce full data copy; primarily controlled via Portworx configuration/annotations. Validate by measuring snapshot times and storage usage across repeated snapshots.
 - RelaxedReclaim: Allows snapshot objects to be reclaimed more flexibly. Validate by deleting `VolumeSnapshot` and confirming associated resources cleanup behavior per policy.
 

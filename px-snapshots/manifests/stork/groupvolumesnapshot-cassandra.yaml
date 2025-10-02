@@ -1,0 +1,13 @@
+apiVersion: stork.libopenstorage.org/v1alpha1
+kind: GroupVolumeSnapshot
+metadata:
+  name: cassandra-group-cloudsnap
+  namespace: px-snapshots
+spec:
+  preExecRule: cassandra-freeze
+  postExecRule: cassandra-thaw
+  snapClassName: px-mysql-snapclass-cloud
+  pvcSelector:
+    matchLabels:
+      app: cassandra
+
