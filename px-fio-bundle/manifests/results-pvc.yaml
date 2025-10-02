@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: px-bench-results
+  namespace: px-bench
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: ocs-storagecluster-cephfs
+  # storageClassName: px-bench-results-do-not-use
+  # storageClassName: ocs-storagecluster-cephfs
+  # IMPORTANT: set to a Portworx RWX-capable StorageClass in your cluster
+  # storageClassName: px-sharedv4-sc
+

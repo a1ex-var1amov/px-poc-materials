@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: px-bench-runner
+  namespace: px-bench
+data:
+  runner.sh: |-
+    #!/usr/bin/env sh
+    set -eu
+    : "${FIO_CONFIG:=/fiocfg/fiojobs.fio}"
+    : "${RESULTS_DIR:=/results}"
+    : "${RUN_TAG:=}"
+    : "${DATA_FILE:=/data/fio.dat}"
+    : "${HOURS:=1}"
+    : "${DURATION_SECONDS:=}"
+    : "${RUNTIME_PER_JOB:=}"
+    : "${SIZE:=1GiB}"
+    : "${SC_NAME:=unknown}"
+    : "${MODE:=single}"
+    : "${CACHE_DROP:=true}"
+    : "${KEEP_ALIVE:=false}"
+    : "${EXTRA_FIO_ARGS:=}"
+    : "${JOBS:=}"
+    : "${JOB_MODE:=}"
+    : "${JOB_FILTER:=}"
+    : "${JOB_EXCLUDE:=}"
+    : "${ITERATION_SLEEP_SECS:=0}"
+    : "${PERCENTILES:=50:95:99}"
+    : "${RUNTIME_PRE_JOB:=}"
+
+    # Sanitize numeric inputs to avoid arithmetic errors
+    sanitize_integer() {
+      case "$1" in
+        ''|*[!0-9]*) echo "$2" ;;
+        *) echo "$1" ;;
+      esac
+    }
+    HOURS=$(sanitize_integer "${HOURS}" "1")
+    ITERATION_SLEEP_SECS=$(sanitize_integer "${ITERATION_SLEEP_SECS}" "0")
+    RAMP_TIME=$(sanitize_integer "${RAMP_TIME:-0}" "0")
+    case "${DURATION_SECONDS:-}" in
+      ''|*[!0-9]*) DURATION_SECONDS="" ;;
+    esac
+    case "${RUNTIME_PER_JOB:-}" in
+      ''|*[!0-9]*) RUNTIME_PER_JOB="" ;;
+    esac
+    case "${RUNTIME_PRE_JOB:-}" in
+      ''|*[!0-9]*) RUNTIME_PRE_JOB="" ;;
+    esac
+    # Prefer RUNTIME_PRE_JOB if provided
+    if [ -n "${RUNTIME_PRE_JOB}" ]; then
+      RUNTIME_PER_JOB="${RUNTIME_PRE_JOB}"
+    fi
+
+    start_ts=$(date -u +%Y%m%dT%H%M%SZ)
+    node_name=$(cat /etc/hostname || true)
+    base_dir="${RESULTS_DIR}/${SC_NAME}"
+    if [ -n "${RUN_TAG:-}" ]; then
+      base_dir="${base_dir}/${RUN_TAG}"
+    fi
+    base_node_dir="${base_dir}/${node_name}"
+    mkdir -p "${base_node_dir}"
+
+    if [ -n "${DURATION_SECONDS}" ]; then
+      duration_seconds=${DURATION_SECONDS}
+    else
+      duration_seconds=$(( ${HOURS} * 3600 ))
+    fi
+    end_epoch=$(( $(date +%s) + duration_seconds ))
+
+    # Prepare fio args
+    fio_args="--output-format=json --filename=${DATA_FILE} --ioengine=libaio --direct=1 --iodepth=128 --end_fsync=1 --size=${SIZE} --percentile_list=${PERCENTILES} ${EXTRA_FIO_ARGS}"
+    if [ -n "${RUNTIME_PER_JOB}" ]; then
+      fio_args="--runtime=${RUNTIME_PER_JOB} --time_based ${fio_args}"
+    fi
+    if [ -n "${RAMP_TIME:-}" ]; then
+      fio_args="--ramp_time=${RAMP_TIME} ${fio_args}"
+    fi
+    if [ "${RANDREPEAT:-false}" = "true" ] || [ "${RANDREPEAT:-0}" = "1" ]; then
+      fio_args="--randrepeat=1 ${fio_args}"
+    fi
+
+    # Determine job execution mode
+    run_mode="all_in_one"
+    if [ -n "${JOB_MODE}" ]; then
+      run_mode="${JOB_MODE}"
+    elif [ -n "${JOBS}" ]; then
+      run_mode="per_section"
+    fi
+
+    # Utility: parse sections from fio config (excluding [global])
+    list_sections() {
+      awk '/^\[.*\]/{gsub(/\[|\]/,"",$0); if($0!="global") print $0}' "${FIO_CONFIG}"
+    }
+
+    # Build job list
+    job_list="${JOBS}"
+    if [ -z "${job_list}" ] && [ "${run_mode}" = "per_section" ]; then
+      sections=$(list_sections)
+      if [ -n "${JOB_FILTER}" ]; then
+        sections=$(echo "${sections}" | grep -E "${JOB_FILTER}" || true)
+      fi
+      if [ -n "${JOB_EXCLUDE}" ]; then
+        sections=$(echo "${sections}" | grep -Ev "${JOB_EXCLUDE}" || true)
+      fi
+      if command -v paste >/dev/null 2>&1; then
+        job_list=$(echo "${sections}" | paste -sd, -)
+      else
+        job_list=$(echo "${sections}" | tr '\n' ',' | sed 's/,$//')
+      fi
+    fi
+
+    i=0
+    while [ "$(date +%s)" -lt "${end_epoch}" ]; do
+      ts=$(date -u +%Y%m%dT%H%M%SZ)
+
+      if [ "${run_mode}" = "per_section" ]; then
+        IFS=','
+        for section in ${job_list}; do
+          unset IFS
+          sec_trim=$(echo "$section" | xargs)
+          [ -z "$sec_trim" ] && continue
+          out_dir="${base_node_dir}/${sec_trim}"
+          mkdir -p "${out_dir}"
+          out_json="${out_dir}/${ts}.json"
+
+          if [ "${CACHE_DROP}" = "true" ]; then
+            if [ -w /proc/sys/vm/drop_caches ]; then
+              sync || true
+              echo 3 > /proc/sys/vm/drop_caches || true
+            fi
+          fi
+
+          echo "[runner] Iter ${i} section ${sec_trim} at ${ts}"
+          if [ -n "${CPUSET:-}" ]; then
+            taskset -c "${CPUSET}" fio ${fio_args} --section="${sec_trim}" "${FIO_CONFIG}" > "${out_json}" 2> "${out_json}.stderr" || true
+          else
+            fio ${fio_args} --section="${sec_trim}" "${FIO_CONFIG}" > "${out_json}" 2> "${out_json}.stderr" || true
+          fi
+          [ "${ITERATION_SLEEP_SECS}" -gt 0 ] && sleep "${ITERATION_SLEEP_SECS}"
+        done
+      else
+        out_dir="${base_node_dir}"
+        mkdir -p "${out_dir}"
+        out_json="${out_dir}/${ts}.json"
+
+        if [ "${CACHE_DROP}" = "true" ]; then
+          if [ -w /proc/sys/vm/drop_caches ]; then
+            sync || true
+            echo 3 > /proc/sys/vm/drop_caches || true
+          fi
+        fi
+
+        echo "[runner] Starting fio iteration ${i} at ${ts} (all sections)"
+        if [ -n "${CPUSET:-}" ]; then
+          taskset -c "${CPUSET}" fio ${fio_args} "${FIO_CONFIG}" > "${out_json}" 2> "${out_json}.stderr" || true
+        else
+          fio ${fio_args} "${FIO_CONFIG}" > "${out_json}" 2> "${out_json}.stderr" || true
+        fi
+      fi
+
+      i=$(( i + 1 ))
+    done
+
+    echo "[runner] Done. Results in ${RESULTS_DIR}/${SC_NAME}/${node_name}"
+    if [ "${KEEP_ALIVE}" = "true" ]; then
+      echo "[runner] KEEP_ALIVE=true; sleeping to prevent restart"
+      tail -f /dev/null
+    fi
+

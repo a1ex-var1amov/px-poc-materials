@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fio-baseline
+  namespace: px-bench
+  labels:
+    app: fio-baseline
+spec:
+  nodeSelector:
+    px-bench: "true"
+  tolerations:
+  - operator: Exists
+  containers:
+  - name: fio
+    image: dmonakhov/alpine-fio
+    args: ["sleep","100000"]
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - mountPath: /fiocfg
+      name: fiocfg
+    - mountPath: /data
+      name: data-volume
+  restartPolicy: Never
+  volumes:
+  - name: fiocfg
+    configMap:
+      name: fiocfg
+  - name: data-volume
+    hostPath:
+      path: /data
+      type: Directory
+

@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: px-results-copy
+  namespace: px-bench
+spec:
+  containers:
+  - command:
+    - /bin/sh
+    - -lc
+    - sleep infinity
+    image: alpine:3.20
+    imagePullPolicy: IfNotPresent
+    name: copy
+    resources: {}
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /results
+      name: results
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-jqltg
+      readOnly: true
+  dnsPolicy: ClusterFirst
+  enableServiceLinks: true
+  nodeName: pdx01-hw-k8s-storage-12
+  preemptionPolicy: PreemptLowerPriority
+  priority: 0
+  restartPolicy: Never
+  schedulerName: stork
+  securityContext: {}
+  serviceAccount: default
+  serviceAccountName: default
+  terminationGracePeriodSeconds: 30
+  tolerations:
+  - effect: NoExecute
+    key: node.kubernetes.io/not-ready
+    operator: Exists
+    tolerationSeconds: 300
+  - effect: NoExecute
+    key: node.kubernetes.io/unreachable
+    operator: Exists
+    tolerationSeconds: 300
+  volumes:
+  - name: results
+    persistentVolumeClaim:
+      claimName: px-bench-results
+  - name: kube-api-access-jqltg
+    projected:
+      defaultMode: 420
+      sources:
+      - serviceAccountToken:
+          expirationSeconds: 3607
+          path: token
+      - configMap:
+          items:
+          - key: ca.crt
+            path: ca.crt
+          name: kube-root-ca.crt
+      - downwardAPI:
+          items:
+          - fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+            path: namespace
+status:
+  conditions:
+  - lastProbeTime: null
+    lastTransitionTime: "2025-09-23T19:26:00Z"
+    reason: PodCompleted
+    status: "True"
+    type: Initialized
+  - lastProbeTime: null
+    lastTransitionTime: "2025-09-23T20:26:03Z"
+    reason: PodCompleted
+    status: "False"
+    type: Ready
+  - lastProbeTime: null
+    lastTransitionTime: "2025-09-23T20:26:03Z"
+    reason: PodCompleted
+    status: "False"
+    type: ContainersReady
+  - lastProbeTime: null
+    lastTransitionTime: "2025-09-23T19:26:00Z"
+    status: "True"
+    type: PodScheduled
+  containerStatuses:
+  - containerID: containerd://4111226f9ee7abf181d9d9150417ae10607cff8fa2c485c77da7fdb524211a3d
+    image: docker.io/library/alpine:3.20
+    imageID: docker.io/library/alpine@sha256:b3119ef930faabb6b7b976780c0c7a9c1aa24d0c75e9179ac10e6bc9ac080d0d
+    lastState: {}
+    name: copy
+    ready: false
+    restartCount: 0
+    started: false
+    state:
+      terminated:
+        containerID: containerd://4111226f9ee7abf181d9d9150417ae10607cff8fa2c485c77da7fdb524211a3d
+        exitCode: 0
+        finishedAt: "2025-09-23T20:26:01Z"
+        reason: Completed
+        startedAt: "2025-09-23T19:26:01Z"
+  hostIP: 10.185.130.166
+  phase: Succeeded
+  podIP: 10.42.171.119
+  podIPs:
+  - ip: 10.42.171.119
+  qosClass: BestEffort
+  startTime: "2025-09-23T19:26:00Z"

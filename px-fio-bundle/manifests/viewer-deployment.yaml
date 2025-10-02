@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: results-viewer
+  namespace: px-bench
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: results-viewer
+  template:
+    metadata:
+      labels:
+        app: results-viewer
+    spec:
+      containers:
+      - name: web
+        image: nginx:1.27-alpine
+        volumeMounts:
+        - name: results
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: results
+        persistentVolumeClaim:
+          claimName: px-bench-results
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: results-viewer
+  namespace: px-bench
+spec:
+  selector:
+    app: results-viewer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: results-viewer
+  namespace: px-bench
+spec:
+  to:
+    kind: Service
+    name: results-viewer
+  port:
+    targetPort: http
+

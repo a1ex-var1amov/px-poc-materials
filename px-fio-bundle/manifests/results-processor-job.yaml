@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: results-processor
+  namespace: px-bench
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: processor
+        image: python:3.12-alpine
+        command: ["/bin/sh","-lc","python /scripts/process-results.py"]
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+        - name: results
+          mountPath: /results
+        # write outputs directly to /results so viewer serves them
+      volumes:
+      - name: scripts
+        configMap:
+          name: results-processor
+          defaultMode: 0755
+      - name: results
+        persistentVolumeClaim:
+          claimName: px-bench-results
+

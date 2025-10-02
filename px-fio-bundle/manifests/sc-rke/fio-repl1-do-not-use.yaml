@@ -1,0 +1,14 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  creationTimestamp: "2025-09-22T20:40:19Z"
+  name: fio-repl1-do-not-use
+  resourceVersion: "1028732383"
+  uid: 572be982-c9c7-4370-b06f-b982f5118172
+parameters:
+  cow_ondemand: "true"
+  io_priority: high
+  repl: "1"
+provisioner: pxd.portworx.com
+reclaimPolicy: Delete
+volumeBindingMode: Immediate

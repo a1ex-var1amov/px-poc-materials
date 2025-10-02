@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: results-processor
+  namespace: px-bench
+data:
+  process-results.py: |-
+    #!/usr/bin/env python3
+    import json,csv,sys,os
+    from pathlib import Path
+    root=Path('/results')
+    rows=[]
+    for sc in sorted(root.glob('*')):
+      if not sc.is_dir():
+        continue
+      for node in sorted(sc.glob('*')):
+        for jf in sorted(node.glob('*.json')):
+          try:
+            data=json.loads(jf.read_text())
+          except Exception:
+            continue
+          for j in data.get('jobs',[]):
+            rows.append({
+              'storage_class': sc.name,
+              'node': node.name,
+              'file': jf.name,
+              'jobname': j.get('jobname'),
+              'groupid': j.get('groupid'),
+              'read_iops': j.get('read',{}).get('iops'),
+              'write_iops': j.get('write',{}).get('iops'),
+              'read_lat_ms': j.get('read',{}).get('lat',{}).get('mean'),
+              'write_lat_ms': j.get('write',{}).get('lat',{}).get('mean'),
+              'read_bw_kib': j.get('read',{}).get('bw'),
+              'write_bw_kib': j.get('write',{}).get('bw'),
+              'read_p50_ms': (j.get('read',{}).get('clat_ns',{}).get('percentile',{}).get('50.000000') or 0)/1e6 if isinstance(j.get('read',{}).get('clat_ns',{}).get('percentile',{}).get('50.000000'), (int,float)) else j.get('read',{}).get('clat_ns',{}).get('percentile',{}).get('50.000000'),
+              'read_p95_ms': (j.get('read',{}).get('clat_ns',{}).get('percentile',{}).get('95.000000') or 0)/1e6 if isinstance(j.get('read',{}).get('clat_ns',{}).get('percentile',{}).get('95.000000'), (int,float)) else j.get('read',{}).get('clat_ns',{}).get('percentile',{}).get('95.000000'),
+              'read_p99_ms': (j.get('read',{}).get('clat_ns',{}).get('percentile',{}).get('99.000000') or 0)/1e6 if isinstance(j.get('read',{}).get('clat_ns',{}).get('percentile',{}).get('99.000000'), (int,float)) else j.get('read',{}).get('clat_ns',{}).get('percentile',{}).get('99.000000'),
+              'write_p50_ms': (j.get('write',{}).get('clat_ns',{}).get('percentile',{}).get('50.000000') or 0)/1e6 if isinstance(j.get('write',{}).get('clat_ns',{}).get('percentile',{}).get('50.000000'), (int,float)) else j.get('write',{}).get('clat_ns',{}).get('percentile',{}).get('50.000000'),
+              'write_p95_ms': (j.get('write',{}).get('clat_ns',{}).get('percentile',{}).get('95.000000') or 0)/1e6 if isinstance(j.get('write',{}).get('clat_ns',{}).get('percentile',{}).get('95.000000'), (int,float)) else j.get('write',{}).get('clat_ns',{}).get('percentile',{}).get('95.000000'),
+              'write_p99_ms': (j.get('write',{}).get('clat_ns',{}).get('percentile',{}).get('99.000000') or 0)/1e6 if isinstance(j.get('write',{}).get('clat_ns',{}).get('percentile',{}).get('99.000000'), (int,float)) else j.get('write',{}).get('clat_ns',{}).get('percentile',{}).get('99.000000'),
+            })
+    if rows:
+      with open('/results/summary.csv','w',newline='') as f:
+        w=csv.DictWriter(f,fieldnames=list(rows[0].keys()))
+        w.writeheader(); w.writerows(rows)
+      Path('/results/index.html').write_text('<html><body><a href="summary.csv">summary.csv</a></body></html>')
+      print('Wrote summary to /results')
+

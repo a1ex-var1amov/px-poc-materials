@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fio-runner-ephemeral
+  namespace: px-bench
+  labels:
+    app: fio
+spec:
+  selector:
+    matchLabels:
+      app: fio
+      px-bench: "true"
+  template:
+    metadata:
+      labels:
+        app: fio
+        px-bench: "true"
+    spec:
+      serviceAccountName: px-bench
+      nodeSelector:
+        px-bench: "true"
+      tolerations:
+      - operator: Exists
+      containers:
+      - name: fio
+        image: quay.io/a13x22/alpine-fio
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh","-lc","/runner/runner.sh"]
+        securityContext:
+          privileged: true
+        env:
+        - name: HOURS
+          value: "1"
+        - name: RUNTIME_PER_JOB
+          value: ""
+        - name: SIZE
+          value: "1GiB"
+        - name: SC_NAME
+          value: "fio-repl1"
+        - name: MODE
+          value: "per-node"
+        - name: RESULTS_DIR
+          value: "/results"
+        - name: KEEP_ALIVE
+          value: "false"
+        - name: JOB_MODE
+          value: ""
+        - name: JOBS
+          value: ""
+        - name: ITERATION_SLEEP_SECS
+          value: "0"
+        - name: RAMP_TIME
+          value: "0"
+        - name: RANDREPEAT
+          value: "false"
+        - name: CPUSET
+          value: ""
+        volumeMounts:
+        - mountPath: /results
+          name: results
+        - mountPath: /fiocfg
+          name: fiocfg
+        - mountPath: /runner
+          name: runner
+        - mountPath: /data
+          name: test-volume
+      volumes:
+      - name: results
+        persistentVolumeClaim:
+          claimName: px-bench-results
+      - name: fiocfg
+        configMap:
+          name: fiocfg
+      - name: runner
+        configMap:
+          name: px-bench-runner
+          defaultMode: 0755
+      - name: test-volume
+        ephemeral:
+          volumeClaimTemplate:
+            metadata:
+              labels:
+                app: fio
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 5Gi
+              storageClassName: fio-repl1
+

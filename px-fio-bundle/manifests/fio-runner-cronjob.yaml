@@ -1,0 +1,70 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fio-runner-hourly
+  namespace: px-bench
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: px-bench
+          containers:
+          - name: fio
+            image: quay.io/a13x22/alpine-fio
+            imagePullPolicy: IfNotPresent
+            command: ["/bin/sh","-lc","chmod +x /runner/runner.sh && /runner/runner.sh"]
+            securityContext:
+              privileged: true
+            env:
+            - name: HOURS
+              value: "1"
+            - name: RUNTIME_PER_JOB
+              value: ""
+            - name: SIZE
+              value: "1GiB"
+            - name: SC_NAME
+              value: "cron"
+            - name: MODE
+              value: "single"
+            - name: RESULTS_DIR
+              value: "/results"
+            - name: KEEP_ALIVE
+              value: "false"
+            - name: JOB_MODE
+              value: ""
+            - name: JOBS
+              value: ""
+            - name: ITERATION_SLEEP_SECS
+              value: "0"
+            - name: RAMP_TIME
+              value: "0"
+            - name: RANDREPEAT
+              value: "false"
+            - name: CPUSET
+              value: ""
+            volumeMounts:
+            - mountPath: /results
+              name: results
+            - mountPath: /fiocfg
+              name: fiocfg
+            - mountPath: /runner
+              name: runner
+            - mountPath: /data
+              name: test-volume
+          volumes:
+          - name: results
+            persistentVolumeClaim:
+              claimName: px-bench-results
+          - name: fiocfg
+            configMap:
+              name: fiocfg
+          - name: runner
+            configMap:
+              name: px-bench-runner
+              defaultMode: 0755
+          - name: test-volume
+            emptyDir: {}
+
