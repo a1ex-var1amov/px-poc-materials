@@ -18,6 +18,7 @@ spec:
       - name: cassandra
         image: cassandra:3.11
         imagePullPolicy: IfNotPresent
+        args: ["-R"]
         ports:
         - containerPort: 7000
           name: intra-node

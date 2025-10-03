@@ -8,7 +8,7 @@ rules:
     app: px-writer
   actions:
   - type: command
-    value: ["sh", "-c", "sync"]
+    value: sh -c "sync"
 ---
 apiVersion: stork.libopenstorage.org/v1alpha1
 kind: Rule
@@ -20,7 +20,7 @@ rules:
     app: px-writer
   actions:
   - type: command
-    value: ["sh", "-c", "echo thaw"]
+    value: sh -c "echo thaw"
 
 ---
 apiVersion: stork.libopenstorage.org/v1alpha1
@@ -33,7 +33,7 @@ rules:
     app: cassandra
   actions:
   - type: command
-    value: ["sh", "-c", "nodetool flush || true"]
+    value: sh -c "nodetool flush || true"
 
 ---
 apiVersion: stork.libopenstorage.org/v1alpha1
@@ -46,5 +46,5 @@ rules:
     app: cassandra
   actions:
   - type: command
-    value: ["sh", "-c", "echo thaw"]
+    value: sh -c "echo thaw"
 

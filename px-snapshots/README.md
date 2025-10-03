@@ -182,20 +182,12 @@ This scenario deploys Cassandra with two PVCs per pod (`data`, `commitlog`) and 
    kubectl apply -f manifests/cassandra/deploy.yaml
    kubectl -n px-snapshots rollout status sts/cassandra
    ```
-2. Apply Cassandra pre/post exec rules:
+2. Creat a group snapshot:
+
    ```bash
-   kubectl apply -f manifests/stork/rules.yaml
+   kubectl create -f px-snapshots/manual-cloud-snap/cassandra-volume-snapshot-cloud-multi-pvc.yaml
    ```
-3. Ensure a cloud-capable `VolumeSnapshotClass` exists:
-   ```bash
-   kubectl apply -f manifests/csi/volumesnapshotclass-cloud.yaml
-   ```
-4. Trigger a GroupVolumeSnapshot for all PVCs labeled `app=cassandra`:
-   ```bash
-   kubectl apply -f manifests/stork/groupvolumesnapshot-cassandra.yaml
-   kubectl -n px-snapshots get volumesnapshot -w
-   ```
-   - STORK will create individual CSI `VolumeSnapshot`s for each matching PVC with `snapClassName: px-mysql-snapclass-cloud`.
+
 5. Verify CloudSnap presence:
    ```bash
    pxctl cloudsnap list
